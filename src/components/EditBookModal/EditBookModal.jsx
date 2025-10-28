@@ -1,14 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './EditBookModal.css';
 
-const EditBookModal = ({ isOpen, onClose, book, onUpdate }) => {
-    const [title, setTitle] = useState(book.title);
-    const [author, setAuthor] = useState(book.author);
-    const [description, setDescription] = useState(book.description);
+const EditBookModal = ({ isOpen, onClose, book = {}, onUpdate }) => {
+    const [title, setTitle] = useState('');
+    const [author, setAuthor] = useState('');
+    const [description, setDescription] = useState('');
+    const [genre, setGenre] = useState('');
+    const [price, setPrice] = useState('');
+
+    useEffect(() => {
+        if (book) {
+            setTitle(book.title || '');
+            setAuthor(book.author || '');
+            setDescription(book.description || '');
+            setGenre(book.genre || '');
+            setPrice(book.price != null ? String(book.price) : '');
+        }
+    }, [book]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const updatedBook = { ...book, title, author, description };
+        const updatedBook = {
+            ...book,
+            title,
+            author,
+            description,
+            genre,
+            price: price === '' ? undefined : parseFloat(price),
+        };
         onUpdate(updatedBook);
         onClose();
     };
@@ -39,15 +58,33 @@ const EditBookModal = ({ isOpen, onClose, book, onUpdate }) => {
                         />
                     </div>
                     <div>
+                        <label>Genre:</label>
+                        <input
+                            type="text"
+                            value={genre}
+                            onChange={(e) => setGenre(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label>Price:</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                        />
+                    </div>
+                    <div>
                         <label>Description:</label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            required
                         />
                     </div>
-                    <button type="submit">Update Book</button>
-                    <button type="button" onClick={onClose}>Cancel</button>
+                    <div className="modal-actions">
+                        <button type="submit">Update Book</button>
+                        <button type="button" onClick={onClose}>Cancel</button>
+                    </div>
                 </form>
             </div>
         </div>

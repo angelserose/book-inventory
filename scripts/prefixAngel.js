@@ -13,6 +13,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', 'src');
 const LOG_FILE = path.join(__dirname, 'prefixAngel.log');
 let counter = 1;
+const DRY = process.argv.includes('--dry') || process.argv.includes('-d');
+const dryResults = []; // collect { file, replacementsCount, sampleReplacements }
 const supportedExt = /\.(js|jsx|ts|tsx)$/i;
 
 function walk(dir, cb) {
@@ -32,6 +34,7 @@ function stripStringsAndComments(src) {
 }
 
 function backupSrc() {
+  if (DRY) return null; // don't create backups during dry-run
   if (!fs.existsSync(ROOT)) return null;
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const dest = path.join(path.dirname(ROOT), `src_backup_before_angel_${timestamp}`);
@@ -132,19 +135,44 @@ function processFile(file) {
 
   if (anyChange) {
     const newSrc = changedLines.join('\n');
-    fs.writeFileSync(file, newSrc, 'utf8');
-    console.log('Processed:', file);
-    log('Processed: ' + file);
+    if (DRY) {
+      // collect summary info instead of writing
+      const sample = [];
+      for (let i = 0; i < Math.min(5, changedLines.length); i++) {
+        if (lines[i] !== changedLines[i]) sample.push({ line: i + 1, before: lines[i], after: changedLines[i] });
+      }
+      dryResults.push({ file, replacementsCount: Object.keys(map).length, sampleReplacements: sample });
+      console.log('[dry] Would process:', file);
+      log('[dry] Would process: ' + file);
+    } else {
+      fs.writeFileSync(file, newSrc, 'utf8');
+      console.log('Processed:', file);
+      log('Processed: ' + file);
+    }
   }
 }
 
-// Make backup
+// Clear or create log file
+fs.writeFileSync(LOG_FILE, 'prefixAngel run at ' + new Date().toISOString() + (DRY ? ' (dry-run)' : '') + '\n', 'utf8');
+
+// Make backup unless dry
 const backupPath = backupSrc();
 if (backupPath) console.log('Backup created at', backupPath) && log('Backup created at ' + backupPath);
 
-// Clear or create log file
-fs.writeFileSync(LOG_FILE, 'prefixAngel run at ' + new Date().toISOString() + '\n', 'utf8');
-
 walk(ROOT, processFile);
-console.log('Prefixing complete. Please review changes and run your tests.');
-log('Prefixing complete.');
+
+if (DRY) {
+  console.log('\nDry-run summary:');
+  if (dryResults.length === 0) console.log('  No files would be changed.');
+  dryResults.forEach(r => {
+    console.log(`  Would change: ${r.file} — replacements: ${r.replacementsCount}`);
+    if (r.sampleReplacements && r.sampleReplacements.length) {
+      console.log('    Sample replacements:');
+      r.sampleReplacements.forEach(s => console.log(`      line ${s.line}: "${s.before}" => "${s.after}"`));
+    }
+  });
+  log('Dry-run completed. ' + (dryResults.length) + ' files would be changed.');
+} else {
+  console.log('Prefixing complete. Please review changes and run your tests.');
+  log('Prefixing complete.');
+}
